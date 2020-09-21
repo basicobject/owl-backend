@@ -1,5 +1,3 @@
-import java.util.UUID
-
 import akka.actor.ActorSystem
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
@@ -16,11 +14,9 @@ import io.circe.parser._
 import io.circe.syntax._
 import messaging._
 
-import scala.util.{Failure, Success, Try}
-
 object WebServer extends App with LazyLogging {
 
-  val service = "owl-messaging"
+  final val service = "owl-messaging"
 
   implicit val actorSystem: ActorSystem = ActorSystem(s"$service-actor-system")
   implicit val ec: ExecutionContext = actorSystem.dispatcher
@@ -36,64 +32,8 @@ object WebServer extends App with LazyLogging {
   def affirmRoute: Route = path("affirm") {
     handleWebSocketMessages {
       Flow[Message].collect {
-        case TextMessage.Strict(s"/JOIN $nickname") =>
-          SessionMap.findOrCreate(nickname.trim)
-          TextMessage(
-            ServerMessage(
-              ServerEvent.JOIN.toString,
-              SessionInfo(SessionMap.getSessions)
-            ).asJson.noSpaces
-          )
-        case TextMessage.Strict(s"/PING $userId") =>
-          // logger.info(s"PING from $userId")
-          Try {
-            SessionMap
-              .find(userId.trim.toLong) match {
-              case None =>
-                TextMessage(
-                  ServerMessage(ServerEvent.NOT_FOUND.toString, EmptyMessage).asJson.noSpaces
-                )
-              case Some(session) =>
-                SessionMap.update(session.copy(state = SessionMap.ACTIVE))
-                TextMessage(
-                  ServerMessage(ServerEvent.PONG.toString, PongMessage).asJson.noSpaces
-                )
-            }
-          } match {
-            case Success(response) => response
-            case Failure(exception) =>
-              TextMessage(
-                ServerMessage(
-                  ServerEvent.ERROR.toString,
-                  PlainMessage(exception.getMessage)
-                ).asJson.noSpaces
-              )
-          }
-        case TextMessage.Strict(text) =>
-          logger.info(s"Got message $text")
-          decode[ClientMessage[NewMessage]](text.trim) match {
-            case Right(message) =>
-              SessionMap.find(message.userId) match {
-                case None =>
-                  TextMessage(
-                    ServerMessage(ServerEvent.NOT_FOUND.toString, EmptyMessage).asJson.noSpaces
-                  )
-                case Some(user) =>
-                  TextMessage(
-                    ServerMessage(
-                      ServerEvent.ACK.toString,
-                      AckMessage(message.body.messageId)
-                    ).asJson.noSpaces
-                  )
-              }
-            case Left(e) =>
-              TextMessage(
-                ServerMessage(
-                  ServerEvent.ERROR.toString,
-                  PlainMessage(e.getMessage)
-                ).asJson.noSpaces
-              )
-          }
+        case TextMessage.Strict(text) => TextMessageHandler.handle(text.trim)
+        case _                        => TextMessageHandler.UnsupportedMessageFormatResponse
       }
     }
   }

@@ -1,9 +1,6 @@
 package messaging
 
-import java.time.Instant
 import java.util.UUID
-
-import messaging.SessionMap.Session
 
 sealed trait GenericMessage
 
@@ -19,10 +16,5 @@ case class NewMessage(messageId: UUID,
                       createdAt: Long)
     extends GenericMessage
 
-case class ServerMessage(event: String, body: GenericMessage)
+case class ServerMessage[T <: GenericMessage](event: String, body: T)
 case class ClientMessage[T <: GenericMessage](userId: Long, body: T)
-
-object ServerEvent extends Enumeration {
-  type Event = Value
-  val ERROR, PONG, PLAIN, NOT_FOUND, JOIN, ACK = Value
-}

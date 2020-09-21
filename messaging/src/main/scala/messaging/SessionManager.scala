@@ -1,11 +1,6 @@
 package messaging
 
-object SessionMap {
-  final val ACTIVE = "active"
-  final val INACTIVE = "active"
-
-  case class Session(userId: Long, nickname: String, state: String = ACTIVE)
-
+object SessionManager {
   private var sessions: Map[Long, Session] = Map.empty[Long, Session]
 
   def getSessions: Seq[Session] = sessions.values.toSeq
@@ -19,6 +14,8 @@ object SessionMap {
 
   def update(session: Session): Unit =
     sessions = sessions.updated(session.userId, session)
+
+  def authenticate(sessionId: Long): Option[Session] = find(sessionId)
 
   private def create(userId: Long, nickname: String): Session = {
     val session = Session(userId, nickname)
