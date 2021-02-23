@@ -25,7 +25,8 @@ object WebServer extends App with LazyLogging {
   final val Pong = "PONG"
   final val Ws = "ws"
   final val WelcomeMessage = s"Welcome to $service"
-  final val StartupMessage = s"$service is running at $Port"
+  final val StartupMessage =
+    s"$service is running at $Port ! Stop the server by pressing q"
   final val ShutdownMessage = s"Bye .. $service is shutting down"
 
   implicit val actorSystem: ActorSystem = ActorSystem(s"$service-actor-system")
@@ -51,22 +52,26 @@ object WebServer extends App with LazyLogging {
       }
     }
 
-  val server = Http()
-    .newServerAt(Host, Port)
-    .bind(helloRoute ~ pingRoute ~ wsRoute)
+  def run(): Unit = {
+    logger.info(StartupMessage)
+    val server = Http()
+      .newServerAt(Host, Port)
+      .bind(helloRoute ~ pingRoute ~ wsRoute)
 
-  @tailrec
-  private def run(): Unit =
-    if (StdIn.readChar() == 'q') {
-      server
-        .flatMap(_.unbind())
-        .onComplete(_ => actorSystem.terminate())
-      logger.info(ShutdownMessage)
-    } else run()
+    @tailrec
+    def handleKeypress(): Unit =
+      if (StdIn.readChar() == 'q') {
+        server
+          .flatMap(_.unbind())
+          .onComplete(_ => actorSystem.terminate())
+        logger.info(ShutdownMessage)
+      } else handleKeypress()
+
+    handleKeypress()
+  }
 
   /**
     * Start the server
     */
   run()
-  logger.info(StartupMessage)
 }
