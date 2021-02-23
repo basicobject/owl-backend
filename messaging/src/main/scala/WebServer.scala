@@ -14,41 +14,59 @@ import io.circe.parser._
 import io.circe.syntax._
 import messaging._
 
+import scala.annotation.tailrec
+
 object WebServer extends App with LazyLogging {
 
   final val service = "owl-messaging"
+  final val Port = 1338
+  final val Host = "localhost"
+  final val Ping = "ping"
+  final val Pong = "PONG"
+  final val Ws = "ws"
+  final val WelcomeMessage = s"Welcome to $service"
+  final val StartupMessage = s"$service is running at $Port"
+  final val ShutdownMessage = s"Bye .. $service is shutting down"
 
   implicit val actorSystem: ActorSystem = ActorSystem(s"$service-actor-system")
   implicit val ec: ExecutionContext = actorSystem.dispatcher
 
-  def helloRoute: Route = pathEndOrSingleSlash {
-    complete(s"Welcome to $service service")
-  }
+  def helloRoute: Route =
+    pathEndOrSingleSlash {
+      complete(WelcomeMessage)
+    }
 
-  def pingRoute: Route = path("ping") {
-    complete("PONG")
-  }
+  def pingRoute: Route =
+    path(Ping) {
+      complete(Pong)
+    }
 
-  def affirmRoute: Route = path("affirm") {
-    handleWebSocketMessages {
-      Flow[Message].collect {
-        case TextMessage.Strict(text) => TextMessageHandler.handle(text.trim)
-        case _                        => TextMessageHandler.UnsupportedMessageFormatResponse
+  def wsRoute: Route =
+    path(Ws) {
+      handleWebSocketMessages {
+        Flow[Message].collect {
+          case TextMessage.Strict(text) => TextMessageHandler.handle(text.trim)
+          case _                        => TextMessageHandler.UnsupportedMessageFormatResponse
+        }
       }
     }
-  }
-
-  val PORT = 1338
 
   val server = Http()
-    .newServerAt("localhost", PORT)
-    .bind(helloRoute ~ pingRoute ~ affirmRoute)
+    .newServerAt(Host, Port)
+    .bind(helloRoute ~ pingRoute ~ wsRoute)
 
-  logger.info(s"$service server is running at $PORT")
+  @tailrec
+  private def run(): Unit =
+    if (StdIn.readChar() == 'q') {
+      server
+        .flatMap(_.unbind())
+        .onComplete(_ => actorSystem.terminate())
+      logger.info(ShutdownMessage)
+    } else run()
 
-  StdIn.readLine()
-
-  server.flatMap(_.unbind()).onComplete(_ => actorSystem.terminate())
-
-  logger.info(s"Bye .. $service server is shutting down")
+  /**
+    * Start the server
+    */
+  run()
+  logger.info(StartupMessage)
 }
