@@ -1,40 +1,39 @@
-import akka.actor.ActorSystem
-import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.Route
+package owl.gateway
+
+import akka.actor.typed.scaladsl.Behaviors
+import akka.actor.typed.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.ws.{Message, TextMessage}
+import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.Route
 import akka.stream.scaladsl.Flow
+import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.LazyLogging
 
+import scala.annotation.tailrec
 import scala.concurrent.ExecutionContext
 import scala.io.StdIn
-import io.circe._
-import io.circe.generic.auto._
-import io.circe.parser._
-import io.circe.syntax._
-import messaging._
 
-import scala.annotation.tailrec
-
-object WebServer extends App with LazyLogging {
-
-  final val service = "owl-messaging"
-  final val Port = 1338
-  final val Host = "localhost"
-  final val Ping = "ping"
+object GatewayServer extends App with LazyLogging {
+  final val config = ConfigFactory.load()
+  final val service = "gateway"
+  final val Port = config.getInt("port")
+  final val Host = config.getString("host")
+  final val Ping = config.getString("pingRoute")
   final val Pong = "PONG"
-  final val Ws = "ws"
+  final val Ws = config.getString("wsRoute")
   final val WelcomeMessage = s"Welcome to $service"
   final val StartupMessage =
     s"$service is running at $Port ! Stop the server by pressing q"
   final val ShutdownMessage = s"Bye .. $service is shutting down"
 
-  implicit val actorSystem: ActorSystem = ActorSystem(s"$service-actor-system")
-  implicit val ec: ExecutionContext = actorSystem.dispatcher
+  implicit val actorSystem: ActorSystem[Nothing] =
+    ActorSystem[Nothing](Behaviors.empty, s"$service-actor-system")
+  implicit val ec: ExecutionContext = actorSystem.executionContext
 
-  def helloRoute: Route =
+  def slashOrEmpty: Route =
     pathEndOrSingleSlash {
-      complete(WelcomeMessage)
+      reject
     }
 
   def pingRoute: Route =
@@ -46,8 +45,8 @@ object WebServer extends App with LazyLogging {
     path(Ws) {
       handleWebSocketMessages {
         Flow[Message].collect {
-          case TextMessage.Strict(text) => TextMessageHandler.handle(text.trim)
-          case _                        => TextMessageHandler.UnsupportedMessageFormatResponse
+          case TextMessage.Strict(text) => TextMessage("Gateway is up")
+          case _                        => TextMessage("Unsupported message")
         }
       }
     }
@@ -56,7 +55,7 @@ object WebServer extends App with LazyLogging {
     logger.info(StartupMessage)
     val server = Http()
       .newServerAt(Host, Port)
-      .bind(helloRoute ~ pingRoute ~ wsRoute)
+      .bind(slashOrEmpty ~ pingRoute ~ wsRoute)
 
     @tailrec
     def handleKeypress(): Unit =
