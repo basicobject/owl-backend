@@ -1,0 +1,18 @@
+syntax = "proto3";
+option java_multiple_files = true;
+option java_package = "owl.session";
+option java_outer_classname = "SessionMapperProto";
+
+service SessionMapperService {
+  rpc CreateSession (CreateSessionRequest) returns (CreateSessionReply) {}
+}
+
+message CreateSessionRequest {
+  int64 userId = 1;
+  string host = 2;
+  int32 port = 3;
+}
+
+message CreateSessionReply {
+  bool done = 1;
+}

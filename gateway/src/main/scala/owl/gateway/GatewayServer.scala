@@ -1,5 +1,6 @@
 package owl.gateway
 
+import akka.NotUsed
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.ActorSystem
 import akka.http.scaladsl.Http
@@ -12,11 +13,16 @@ import com.typesafe.scalalogging.LazyLogging
 
 import scala.annotation.tailrec
 import scala.concurrent.ExecutionContext
+import scala.concurrent.duration._
 import scala.io.StdIn
+import owl.common.OwlService
 
-object GatewayServer extends App with LazyLogging {
+import scala.util.{Failure, Success}
+
+object GatewayServer extends OwlService with LazyLogging {
+  override final val service = "gateway"
+
   final val config = ConfigFactory.load()
-  final val service = "gateway"
   final val Port = config.getInt("port")
   final val Host = config.getString("host")
   final val Ping = config.getString("pingRoute")
@@ -43,19 +49,29 @@ object GatewayServer extends App with LazyLogging {
 
   def wsRoute: Route =
     path(Ws) {
-      handleWebSocketMessages {
-        Flow[Message].collect {
-          case TextMessage.Strict(text) => TextMessage("Gateway is up")
-          case _                        => TextMessage("Unsupported message")
-        }
-      }
+      logger.info("got message")
+      handleWebSocketMessages(echoFlow)
     }
 
-  def run(): Unit = {
-    logger.info(StartupMessage)
+  val echoFlow: Flow[Message, TextMessage.Strict, NotUsed] =
+    Flow[Message].collect {
+      case TextMessage.Strict(text) => TextMessage(text)
+      case _                        => TextMessage("Unsupported")
+    }
+
+  override def run(): Unit = {
     val server = Http()
       .newServerAt(Host, Port)
       .bind(slashOrEmpty ~ pingRoute ~ wsRoute)
+      .map(_.addToCoordinatedShutdown(hardTerminationDeadline = 10.seconds))
+
+    server.onComplete {
+      case Success(_binding) =>
+        logger.info(StartupMessage)
+      case Failure(exception) =>
+        logger.error(s"Failed to bind $service, terminating", exception)
+        actorSystem.terminate()
+    }
 
     @tailrec
     def handleKeypress(): Unit =
@@ -68,9 +84,4 @@ object GatewayServer extends App with LazyLogging {
 
     handleKeypress()
   }
-
-  /**
-    * Start the server
-    */
-  run()
 }
