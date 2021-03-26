@@ -5,7 +5,9 @@ import io.grpc.{Server, ServerBuilder}
 import owl.common.OwlService
 import owl.proto.session.SessionServiceGrpc
 
-import scala.concurrent.ExecutionContext
+import scala.annotation.tailrec
+import scala.concurrent.{ExecutionContext, Future}
+import scala.io.StdIn
 
 object SessionMapper extends OwlService with LazyLogging {
   override final val service = "session"
@@ -27,11 +29,26 @@ object SessionMapper extends OwlService with LazyLogging {
     .build()
 
   sys.addShutdownHook {
+    logger.info(s"[Shutdown Hook] $service")
     server.shutdown()
   }
 
+  def startGrpcServer(): Future[Unit] =
+    Future {
+      server.start()
+      server.awaitTermination()
+    }(ExecutionContext.global)
+
   override def run(): Unit = {
-    server.start()
-    server.awaitTermination()
+    startGrpcServer()
+
+    @tailrec
+    def handleKeypress(): Unit =
+      if (StdIn.readChar() == 'q') {
+        logger.info(s"Quitting $service")
+        System.exit(0)
+      } else handleKeypress()
+
+    handleKeypress()
   }
 }
