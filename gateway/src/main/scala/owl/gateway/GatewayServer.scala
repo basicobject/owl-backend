@@ -7,17 +7,20 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.ws.{Message, TextMessage}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
-import akka.stream.scaladsl.Flow
+import akka.stream.scaladsl.{Flow, Source}
 import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.LazyLogging
 
 import scala.annotation.tailrec
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
 import scala.io.StdIn
 import owl.common.OwlService
 
+import java.util.UUID
 import scala.util.{Failure, Success}
+import io.circe.parser
+import io.circe.generic.auto._
 
 object GatewayServer extends OwlService with LazyLogging {
   override final val service = "gateway"
@@ -48,9 +51,33 @@ object GatewayServer extends OwlService with LazyLogging {
     }
 
   def wsRoute: Route =
-    path(Ws) {
-      logger.info("got message")
-      handleWebSocketMessages(echoFlow)
+    pathPrefix(Ws) {
+      path(LongNumber) { userId =>
+        logger.info("got message")
+        registerWithSessionService(userId)
+        handleWebSocketMessages(echoFlow)
+      }
+    }
+
+  def registerWithSessionService(userId: Long): Future[Unit] = {
+    logger.info(s"Registering with SessionMapper userId: $userId")
+    Future.successful(())
+  }
+
+  val parseMessage: Flow[Message, ChatMessage, NotUsed] =
+    Flow[Message].collect {
+      case TextMessage.Strict(text) =>
+        parser.decode[ChatMessage](text) match {
+          case Right(chat) => chat
+          case Left(_)     =>
+        }
+    }
+
+  val sendMessageFlow: Flow[Message, TextMessage.Strict, NotUsed] =
+    Flow[Message].collect {
+      case TextMessage.Strict(text) =>
+        TextMessage("Ack")
+      case _ => TextMessage("Unsupported")
     }
 
   val echoFlow: Flow[Message, TextMessage.Strict, NotUsed] =

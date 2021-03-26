@@ -5,5 +5,5 @@ trait OwlService {
   def run(): Unit
 
   type Host = String
-  type Port = Short
+  type Port = Int
 }
