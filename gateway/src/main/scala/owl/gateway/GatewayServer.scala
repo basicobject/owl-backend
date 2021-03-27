@@ -6,7 +6,7 @@ import akka.actor.typed.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.ws.{Message, TextMessage}
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.server.{PathMatcher, Route}
 import akka.stream.scaladsl.{Flow, Source}
 import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.LazyLogging
@@ -17,10 +17,10 @@ import scala.concurrent.duration._
 import scala.io.StdIn
 import owl.common.OwlService
 
-import java.util.UUID
 import scala.util.{Failure, Success}
 import io.circe.parser
 import io.circe.generic.auto._
+import io.grpc.ManagedChannelBuilder
 
 object GatewayServer extends OwlService with LazyLogging {
   override final val service = "gateway"
@@ -52,16 +52,16 @@ object GatewayServer extends OwlService with LazyLogging {
 
   def wsRoute: Route =
     pathPrefix(Ws) {
-      path(LongNumber) { userId =>
+      path(Segment) { userId =>
         logger.info("got message")
         registerWithSessionService(userId)
         handleWebSocketMessages(echoFlow)
       }
     }
 
-  def registerWithSessionService(userId: Long): Future[Unit] = {
+  def registerWithSessionService(userId: String): Unit = {
     logger.info(s"Registering with SessionMapper userId: $userId")
-    Future.successful(())
+    SessionClient.register(userId, Host, Port)
   }
 
   val parseMessage: Flow[Message, ChatMessage, NotUsed] =
@@ -69,7 +69,7 @@ object GatewayServer extends OwlService with LazyLogging {
       case TextMessage.Strict(text) =>
         parser.decode[ChatMessage](text) match {
           case Right(chat) => chat
-          case Left(_)     =>
+          case Left(_)     => throw new InvalidChatMessageError
         }
     }
 

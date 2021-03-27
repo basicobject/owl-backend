@@ -1,11 +1,11 @@
 package owl.session;
 
-import owl.proto.session.{
+import owl.common.GatewayService
+import owl.common.session.{
   CreateSessionRequest,
   CreateSessionResponse,
   SessionServiceGrpc
 }
-import owl.session.SessionMapper.GatewayService
 
 import scala.concurrent.Future
 
@@ -13,8 +13,8 @@ class SessionServiceImpl extends SessionServiceGrpc.SessionService {
   override def createSession(
       request: CreateSessionRequest
   ): Future[CreateSessionResponse] = {
-    val gateWay: GatewayService = (request.host, request.port)
-    SessionMapper.sessionMap += (request.userId -> gateWay)
+    val gateway = GatewayService(request.host, request.port)
+    SessionMapper.sessionMap += (request.userId -> gateway)
     Future.successful(CreateSessionResponse(true))
   }
 

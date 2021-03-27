@@ -2,8 +2,8 @@ package owl.session
 
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.{Server, ServerBuilder}
-import owl.common.OwlService
-import owl.proto.session.SessionServiceGrpc
+import owl.common.{GatewayService, OwlService}
+import owl.common.session.SessionServiceGrpc
 
 import scala.annotation.tailrec
 import scala.concurrent.{ExecutionContext, Future}
@@ -11,8 +11,6 @@ import scala.io.StdIn
 
 object SessionMapper extends OwlService with LazyLogging {
   override final val service = "session"
-
-  type GatewayService = (Host, Port)
 
   /**
     * This could be replaced with a distributed cache

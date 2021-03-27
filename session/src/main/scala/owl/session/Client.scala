@@ -1,7 +1,7 @@
 package owl.session
 
 import io.grpc.ManagedChannelBuilder
-import owl.proto.session.{CreateSessionRequest, SessionServiceGrpc}
+import owl.common.session.{CreateSessionRequest, SessionServiceGrpc}
 
 object Client extends App {
   val channel =

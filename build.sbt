@@ -16,7 +16,10 @@ val commonDependencies = Seq(
   "com.typesafe.akka" %% "akka-http" % AkkaHttpVersion,
   "com.typesafe.scala-logging" %% "scala-logging" % "3.9.2",
   "ch.qos.logback" % "logback-classic" % "1.2.3",
-  "com.typesafe" % "config" % "1.4.1",
+  "com.typesafe" % "config" % "1.4.1"
+)
+
+val grcpDependencies = Seq(
   "io.grpc" % "grpc-netty" % scalapb.compiler.Version.grpcJavaVersion,
   "com.thesamet.scalapb" %% "scalapb-runtime-grpc" % scalapb.compiler.Version.scalapbVersion
 )
@@ -27,7 +30,13 @@ val circeDependencies = Seq(
   "io.circe" %% "circe-parser" % CirceVersion
 )
 
-lazy val common = project.settings(name := "owl-common")
+lazy val common = project.settings(
+  name := "owl-common",
+  libraryDependencies ++= grcpDependencies,
+  PB.targets in Compile := Seq(
+    scalapb.gen() -> (sourceManaged in Compile).value / "scalapb"
+  )
+)
 
 lazy val gateway = project
   .settings(
@@ -49,8 +58,6 @@ lazy val session = project
   .settings(
     name := "owl-session",
     libraryDependencies ++= commonDependencies,
-    PB.targets in Compile := Seq(
-      scalapb.gen() -> (sourceManaged in Compile).value / "scalapb"
-    )
+    libraryDependencies ++= grcpDependencies
   )
   .dependsOn(common)
