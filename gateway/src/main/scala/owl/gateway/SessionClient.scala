@@ -1,8 +1,13 @@
 package owl.gateway
 
+import akka.actor.FSM.Failure
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.{ManagedChannel, ManagedChannelBuilder}
 import owl.common.session.{CreateSessionRequest, SessionServiceGrpc}
+
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
+import scala.util.control.NonFatal
 
 object SessionClient extends LazyLogging {
   val channel: ManagedChannel =
@@ -11,11 +16,17 @@ object SessionClient extends LazyLogging {
       .usePlaintext()
       .build()
 
-  val syncClient = SessionServiceGrpc.blockingStub(channel)
+  val syncClient = SessionServiceGrpc.stub(channel)
 
-  def register(userId: String, host: String, port: Int): Unit = {
-    val response =
-      syncClient.createSession(CreateSessionRequest(userId, port, host))
-    logger.info(s"[Session Mapper Response] ${response.success}")
+  def register(userId: String, host: String, port: Int): Future[Boolean] = {
+    syncClient
+      .createSession(CreateSessionRequest(userId, port, host))
+      .map { response =>
+        logger.info(s"[Session Mapper Response] ${response.success}")
+        response.success
+      }
+      .recoverWith {
+        case NonFatal(_) => Future.successful(false)
+      }
   }
 }

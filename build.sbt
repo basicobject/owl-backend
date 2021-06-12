@@ -13,10 +13,14 @@ val CirceVersion = "0.12.3"
 val commonDependencies = Seq(
   "com.typesafe.akka" %% "akka-actor-typed" % AkkaVersion,
   "com.typesafe.akka" %% "akka-stream" % AkkaVersion,
+  "com.typesafe.akka" %% "akka-stream-testkit" % AkkaVersion % Test,
   "com.typesafe.akka" %% "akka-http" % AkkaHttpVersion,
+  "com.typesafe.akka" %% "akka-http-testkit" % AkkaHttpVersion,
   "com.typesafe.scala-logging" %% "scala-logging" % "3.9.2",
   "ch.qos.logback" % "logback-classic" % "1.2.3",
-  "com.typesafe" % "config" % "1.4.1"
+  "com.typesafe" % "config" % "1.4.1",
+  "org.scalactic" %% "scalactic" % "3.2.9",
+  "org.scalatest" %% "scalatest" % "3.2.9" % "test"
 )
 
 val grcpDependencies = Seq(
@@ -61,3 +65,8 @@ lazy val session = project
     libraryDependencies ++= grcpDependencies
   )
   .dependsOn(common)
+
+lazy val client = project.settings(
+  name := "owl-client",
+  libraryDependencies ++= commonDependencies
+)

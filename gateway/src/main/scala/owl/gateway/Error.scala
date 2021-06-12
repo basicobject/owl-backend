@@ -4,4 +4,6 @@ sealed trait Error extends RuntimeException {
   def message: String = this.getClass.getSimpleName
 }
 
-class InvalidChatMessageError extends Error
+class BadCommandError(msg: String) extends Error {
+  override def message: String = s"${super.message} $msg"
+}

@@ -1,26 +1,17 @@
 package owl.gateway
 
-import akka.NotUsed
-import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.ActorSystem
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.ws.{Message, TextMessage}
-import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.{PathMatcher, Route}
-import akka.stream.scaladsl.{Flow, Source}
 import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.LazyLogging
+import owl.common.OwlService
+import owl.gateway.Gateway.GatewayAction
 
 import scala.annotation.tailrec
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.io.StdIn
-import owl.common.OwlService
-
 import scala.util.{Failure, Success}
-import io.circe.parser
-import io.circe.generic.auto._
-import io.grpc.ManagedChannelBuilder
 
 object GatewayServer extends OwlService with LazyLogging {
   override final val service = "gateway"
@@ -28,68 +19,18 @@ object GatewayServer extends OwlService with LazyLogging {
   final val config = ConfigFactory.load()
   final val Port = config.getInt("port")
   final val Host = config.getString("host")
-  final val Ping = config.getString("pingRoute")
-  final val Pong = "PONG"
-  final val Ws = config.getString("wsRoute")
   final val WelcomeMessage = s"Welcome to $service"
   final val StartupMessage =
     s"$service is running at $Port ! Stop the server by pressing q"
   final val ShutdownMessage = s"Bye .. $service is shutting down"
 
-  implicit val actorSystem: ActorSystem[Nothing] =
-    ActorSystem[Nothing](Behaviors.empty, s"$service-actor-system")
-  implicit val ec: ExecutionContext = actorSystem.executionContext
-
-  def slashOrEmpty: Route =
-    pathEndOrSingleSlash {
-      reject
-    }
-
-  def pingRoute: Route =
-    path(Ping) {
-      complete(Pong)
-    }
-
-  def wsRoute: Route =
-    pathPrefix(Ws) {
-      path(Segment) { userId =>
-        logger.info("got message")
-        registerWithSessionService(userId)
-        handleWebSocketMessages(echoFlow)
-      }
-    }
-
-  def registerWithSessionService(userId: String): Unit = {
-    logger.info(s"Registering with SessionMapper userId: $userId")
-    SessionClient.register(userId, Host, Port)
-  }
-
-  val parseMessage: Flow[Message, ChatMessage, NotUsed] =
-    Flow[Message].collect {
-      case TextMessage.Strict(text) =>
-        parser.decode[ChatMessage](text) match {
-          case Right(chat) => chat
-          case Left(_)     => throw new InvalidChatMessageError
-        }
-    }
-
-  val sendMessageFlow: Flow[Message, TextMessage.Strict, NotUsed] =
-    Flow[Message].collect {
-      case TextMessage.Strict(text) =>
-        TextMessage("Ack")
-      case _ => TextMessage("Unsupported")
-    }
-
-  val echoFlow: Flow[Message, TextMessage.Strict, NotUsed] =
-    Flow[Message].collect {
-      case TextMessage.Strict(text) => TextMessage(text)
-      case _                        => TextMessage("Unsupported")
-    }
+  implicit val as: ActorSystem[GatewayAction] = GatewayActorSystemProvider.get
+  implicit val ec: ExecutionContext = GatewayExecutionContextProvider.get
 
   override def run(): Unit = {
     val server = Http()
       .newServerAt(Host, Port)
-      .bind(slashOrEmpty ~ pingRoute ~ wsRoute)
+      .bind(GatewayController.routes)
       .map(_.addToCoordinatedShutdown(hardTerminationDeadline = 10.seconds))
 
     server.onComplete {
@@ -97,15 +38,16 @@ object GatewayServer extends OwlService with LazyLogging {
         logger.info(StartupMessage)
       case Failure(exception) =>
         logger.error(s"Failed to bind $service, terminating", exception)
-        actorSystem.terminate()
+        as.terminate()
     }
+
+    def stop(): Unit =
+      server.flatMap(_.unbind()).onComplete(_ => as.terminate())
 
     @tailrec
     def handleKeypress(): Unit =
       if (StdIn.readChar() == 'q') {
-        server
-          .flatMap(_.unbind())
-          .onComplete(_ => actorSystem.terminate())
+        stop()
         logger.info(ShutdownMessage)
       } else handleKeypress()
 
