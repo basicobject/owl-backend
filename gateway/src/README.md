@@ -1,4 +1,4 @@
-Start service and connect to websocket by typing
+Start serviceName and connect to websocket by typing
 
 $ sbt "project gateway" run
 

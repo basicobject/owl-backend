@@ -13,16 +13,16 @@ import scala.concurrent.duration._
 import scala.io.StdIn
 import scala.util.{Failure, Success}
 
-object GatewayServer extends OwlService with LazyLogging {
-  override final val service = "gateway"
+object GatewayService extends OwlService with LazyLogging {
+  override final val serviceName = "gateway"
 
   final val config = ConfigFactory.load()
   final val Port = config.getInt("port")
   final val Host = config.getString("host")
-  final val WelcomeMessage = s"Welcome to $service"
+  final val WelcomeMessage = s"Welcome to $serviceName"
   final val StartupMessage =
-    s"$service is running at $Port ! Stop the server by pressing q"
-  final val ShutdownMessage = s"Bye .. $service is shutting down"
+    s"$serviceName is running at $Port ! Stop the server by pressing q"
+  final val ShutdownMessage = s"Bye .. $serviceName is shutting down"
 
   implicit val as: ActorSystem[GatewayAction] = GatewayActorSystemProvider.get
   implicit val ec: ExecutionContext = GatewayExecutionContextProvider.get
@@ -37,7 +37,7 @@ object GatewayServer extends OwlService with LazyLogging {
       case Success(_binding) =>
         logger.info(StartupMessage)
       case Failure(exception) =>
-        logger.error(s"Failed to bind $service, terminating", exception)
+        logger.error(s"Failed to bind $serviceName, terminating", exception)
         as.terminate()
     }
 

@@ -10,7 +10,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.io.StdIn
 
 object SessionMapper extends OwlService with LazyLogging {
-  override final val service = "session"
+  override final val serviceName = "session"
 
   /**
     * This could be replaced with a distributed cache
@@ -27,7 +27,7 @@ object SessionMapper extends OwlService with LazyLogging {
     .build()
 
   sys.addShutdownHook {
-    logger.info(s"[Shutdown Hook] $service")
+    logger.info(s"[Shutdown Hook] $serviceName")
     server.shutdown()
   }
 
@@ -43,7 +43,7 @@ object SessionMapper extends OwlService with LazyLogging {
     @tailrec
     def handleKeypress(): Unit =
       if (StdIn.readChar() == 'q') {
-        logger.info(s"Quitting $service")
+        logger.info(s"Quitting $serviceName")
         System.exit(0)
       } else handleKeypress()
 

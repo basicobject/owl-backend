@@ -8,12 +8,12 @@ import akka.http.scaladsl.server.Route
 import akka.stream.scaladsl.Flow
 import com.typesafe.scalalogging.LazyLogging
 import owl.gateway.Gateway.GatewayAction
-import owl.gateway.GatewayServer.{Host, Port}
+import owl.gateway.GatewayService.{Host, Port}
 import owl.session.Session
 
 object GatewayController extends LazyLogging {
 
-  implicit val as: ActorSystem[GatewayAction] = GatewayActorSystemProvider.get
+  import owl.gateway.Implicits.ActorSystem
 
   final val Pong = "PONG"
   final val PingPath = "ping"
@@ -43,12 +43,14 @@ object GatewayController extends LazyLogging {
 
   def registerWithSessionService(
       userId: String
-  ): Unit = {
+  )(implicit as: ActorSystem[GatewayAction]): Unit = {
     logger.info(s"Registering session for $userId, $Host, $Port")
     as ! Gateway.RegisterSession(Session(userId, Host, Port))
   }
 
-  def handleIncomingMessage(text: String): Unit = {
+  def handleIncomingMessage(
+      text: String
+  )(implicit as: ActorSystem[GatewayAction]): Unit = {
     logger.info(s"Handle NewMessage: $text")
     as ! Gateway.MessagingHandler(text)
   }
@@ -65,6 +67,6 @@ object GatewayController extends LazyLogging {
   val echoFlow: Flow[Message, TextMessage.Strict, NotUsed] =
     Flow[Message].collect {
       case TextMessage.Strict(text) => TextMessage(text)
-      case _                        => TextMessage("/Unsupported")
+      case _                        => Unsupported
     }
 }
